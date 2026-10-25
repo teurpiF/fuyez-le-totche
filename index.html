@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#18271e">
+<title>Fuyez le Totché</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; width:100%; height:100%; overflow:hidden; background:#18271e; font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:#fff; touch-action:none; }
+  #game { display:block; width:100vw; height:100dvh; }
+  #hud { position:fixed; inset:0; pointer-events:none; }
+  .top { position:absolute; top:max(10px,env(safe-area-inset-top)); left:10px; right:10px; display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+  .panel { background:rgba(15,27,20,.82); border:1px solid rgba(255,255,255,.18); border-radius:12px; padding:8px 10px; box-shadow:0 3px 12px #0005; font-size:13px; }
+  #timer { font-size:20px; font-weight:800; font-variant-numeric:tabular-nums; }
+  #lives { display:flex; gap:5px; margin-top:5px; }
+  .slice { width:18px; height:12px; background:#e8c47a; border:2px solid #fff0c5; border-radius:3px 8px 3px 3px; transform:skew(-12deg); box-shadow:inset -4px -2px #bd8047; }
+  .slice.lost { background:#493c30; border-color:#65574b; box-shadow:none; opacity:.75; }
+  #drunkBox { position:absolute; right:10px; top:115px; width:35px; height:190px; padding:4px; border:1px solid #ffffff99; border-radius:10px; background:#17221bd9; display:flex; flex-direction:column; align-items:center; gap:5px; }
+  #drunkLabel { font-size:9px; font-weight:800; writing-mode:vertical-rl; transform:rotate(180deg); }
+  #meter { width:14px; flex:1; border-radius:5px; background:#3c322e; overflow:hidden; display:flex; align-items:flex-end; }
+  #meterFill { width:100%; height:100%; background:linear-gradient(to top,#e44735 0%,#e8a83a 45%,#60bd67 100%); transition:height .08s linear; }
+  #notice { position:absolute; top:42%; left:50%; transform:translate(-50%,-50%); width:min(90vw,340px); text-align:center; font-weight:900; font-size:20px; text-shadow:0 3px 5px #000; opacity:0; transition:opacity .15s; }
+  #hint { position:absolute; left:50%; bottom:max(18px,env(safe-area-inset-bottom)); transform:translateX(-50%); width:max-content; max-width:85vw; text-align:center; font-size:12px; color:#fff; background:#102017c9; padding:8px 12px; border:1px solid #ffffff30; border-radius:20px; }
+  #overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:22px; background:linear-gradient(#102017bb,#102017e8); z-index:5; }
+  .card { width:min(100%,390px); border:1px solid #ffffff35; border-radius:20px; padding:24px 20px; text-align:center; background:#20372a; box-shadow:0 15px 50px #0008; }
+  h1 { margin:0 0 8px; font-size:32px; line-height:1.05; letter-spacing:-1px; }
+  .sub { color:#d5e0d5; line-height:1.45; font-size:14px; margin:12px 0 18px; }
+  button { border:0; border-radius:12px; background:#e4bb6a; color:#2b2419; font-weight:900; font-size:16px; padding:13px 18px; width:100%; }
+  button:active { transform:scale(.98); }
+  #initials { width:100%; text-align:center; text-transform:uppercase; font-size:22px; letter-spacing:8px; padding:12px; border-radius:10px; border:1px solid #ffffff50; background:#132219; color:white; margin:8px 0 12px; }
+  #scores { text-align:left; margin:15px 0 0; font-size:13px; color:#e4ece3; }
+  #scores div { display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #ffffff12; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">
+  <div class="top">
+    <div class="panel"><div>CHRONO</div><div id="timer">00:00</div><div id="lives"><span class="slice"></span><span class="slice"></span><span class="slice"></span></div></div>
+    <div class="panel" style="text-align:right">FUYEZ LE TOTCHÉ<br><span style="font-size:10px;color:#d4dfd3">Saint-Martin</span></div>
+  </div>
+  <div id="drunkBox"><div id="drunkLabel">IVRESSE</div><div id="meter"><div id="meterFill"></div></div></div>
+  <div id="notice"></div>
+  <div id="hint">Pose ton doigt dans le tiers inférieur et glisse pour diriger</div>
+</div>
+<div id="overlay">
+  <div class="card" id="startCard">
+    <h1>Fuyez le Totché</h1>
+    <div class="sub">La marche gourmande vient de commencer. Tes copains veulent discrètement se débarrasser de leur part de Totché dans ta capuche.<br><br>Pose ton doigt dans le tiers inférieur de l’écran et glisse dans la direction souhaitée pour les éviter. Le joystick est invisible.<br><br>Reviens voir Cédric au bar pour te resservir. Tu ne dois pas redevenir sobre.<br><br>Des bonus vont apparaître, attention toutefois à ne pas choper ce méchant virus qui traîne depuis 2020…</div>
+    <button id="startBtn">Entrer dans la fête</button>
+    <div id="scores"></div>
+  </div>
+  <div class="card hidden" id="endCard">
+    <h1 id="endTitle">Perduuuuuu</h1>
+    <div class="sub" id="endText">La fête est terminée.</div>
+    <label for="initials">Tes 3 initiales</label>
+    <input id="initials" maxlength="3" autocomplete="off" autocapitalize="characters" value="AAA">
+    <button id="saveBtn">Enregistrer le score</button>
+    <div id="scoresEnd"></div>
+    <button id="againBtn" style="margin-top:10px;background:#d8e1d6">Recommencer</button>
+  </div>
+</div>
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const overlay = document.getElementById('overlay');
+  const startCard = document.getElementById('startCard');
+  const endCard = document.getElementById('endCard');
+  const timerEl = document.getElementById('timer');
+  const meterFill = document.getElementById('meterFill');
+  const notice = document.getElementById('notice');
+  const hint = document.getElementById('hint');
+  const livesEls = [...document.querySelectorAll('.slice')];
+  const scoresEl = document.getElementById('scores');
+  const scoresEnd = document.getElementById('scoresEnd');
+
+  const rand=(a,b)=>a+Math.random()*(b-a);
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  let W=0,H=0,dpr=1, running=false, last=0, elapsed=0, drunk=100, lives=3;
+  let player, enemies=[], particles=[], bonuses=[], pointer=null, enemyClock=0, fireClock=0, barClock=0, noticeClock=0;
+  let bonusClock=rand(6,9), immunityTimer=0, quadTimer=0;
+  let worldScale=1, cameraX=0, cameraY=0, gameOverReason='';
+  let hitProtection=0;
+  let enemySequence=[1,2,3,4,5,6,7], enemySpawnIndex=0;
+  function resize(){
+    dpr=Math.min(window.devicePixelRatio||1,2); W=innerWidth; H=innerHeight;
+    canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);
+    canvas.style.width=W+'px'; canvas.style.height=H+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize',resize); resize();
+
+  function showNotice(text, seconds=1.4){
+    notice.textContent=text; notice.style.opacity='1'; noticeClock=seconds;
+  }
+  function worldToScreen(x,y){
+    return {x:W/2+(x-cameraX), y:H/2+(y-cameraY)};
+  }
+  function screenToWorld(x,y){
+    return {x:x-W/2+cameraX,y:y-H/2+cameraY};
+  }
+  function drawTree(x,y,s){
+    const p=worldToScreen(x,y);
+    ctx.fillStyle='#493a2b'; ctx.fillRect(p.x-3*s,p.y-2*s,6*s,19*s);
+    ctx.fillStyle='#234c31'; ctx.beginPath(); ctx.arc(p.x,p.y-9*s,17*s,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#2f603b'; ctx.beginPath(); ctx.arc(p.x-7*s,p.y-13*s,10*s,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#3c7043'; ctx.beginPath(); ctx.arc(p.x+6*s,p.y-15*s,9*s,0,Math.PI*2); ctx.fill();
+  }
+  function drawPerson(x,y,shirt,hasPie=false,isPlayer=false,enemyType=0){
+    const p=worldToScreen(x,y);
+    const s=isPlayer?1.12:1.0;
+    ctx.save();ctx.translate(p.x,p.y);ctx.scale(s,s);
+    // Shadow and feet
+    ctx.fillStyle='rgba(8,16,10,.32)';ctx.beginPath();ctx.ellipse(0,8,15,6,0,0,Math.PI*2);ctx.fill();
+
+    if(enemyType===5){
+      // Llama enemy: fluffy cream body, long neck, ears and muzzle.
+      ctx.fillStyle='#b7a88e';ctx.beginPath();ctx.ellipse(0,-2,10,13,.12,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#f2e5c9';ctx.beginPath();ctx.ellipse(-1,-4,9,12,.1,0,Math.PI*2);ctx.fill();
+      for(let k=0;k<7;k++){const a=k*Math.PI*2/7;ctx.beginPath();ctx.arc(Math.cos(a)*7,-4+Math.sin(a)*8,3.5,0,Math.PI*2);ctx.fill();}
+      ctx.fillStyle='#d8c7a6';ctx.beginPath();ctx.roundRect(-5,-23,10,18,4);ctx.fill();
+      ctx.fillStyle='#f2e5c9';ctx.beginPath();ctx.roundRect(-4,-25,8,18,4);ctx.fill();
+      ctx.fillStyle='#d8c7a6';ctx.beginPath();ctx.ellipse(-4,-29,2.5,6,-.25,0,Math.PI*2);ctx.ellipse(4,-29,2.5,6,.25,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#f2e5c9';ctx.beginPath();ctx.ellipse(0,-25,6,7,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#302820';ctx.beginPath();ctx.arc(-2,-26,1,0,Math.PI*2);ctx.arc(2,-26,1,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#c4b08b';ctx.beginPath();ctx.ellipse(0,-22,3,2,0,0,Math.PI*2);ctx.fill();
+      // White Saint-Martin shirt
+      ctx.fillStyle='#fffdf3';ctx.beginPath();ctx.roundRect(-8,-12,16,15,4);ctx.fill();
+      
+      ctx.strokeStyle='#d8c7a6';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(-4,4);ctx.lineTo(-5,12);ctx.moveTo(4,4);ctx.lineTo(5,12);ctx.stroke();
+      ctx.fillStyle='#33312d';ctx.beginPath();ctx.ellipse(-5,13,3.5,2,0,0,Math.PI*2);ctx.ellipse(5,13,3.5,2,0,0,Math.PI*2);ctx.fill();
+    } else {
+      const jacket = isPlayer?'#f47b22':({
+        1:'#b52f2b',2:'#2874b9',3:'#ed9da9',4:'#d9ed39',6:'#287c45',7:'#e8e4dc'
+      }[enemyType]||shirt);
+      const pants = isPlayer?'#24476a':({1:'#202124',2:'#24282d',3:'#ed9da9',4:'#c9b99a',6:'#68452d',7:'#fdfdf8'}[enemyType]||'#30312d');
+      const shoes = isPlayer?'#ffffff':({1:'#5d3924',2:'#16191d',3:'#777777',4:'#17191b',6:'#2f7141',7:'#242424'}[enemyType]||'#272727');
+
+      // Legs, trousers and shoes
+      ctx.strokeStyle=pants;ctx.lineWidth=5.5;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(-4,1);ctx.lineTo(-6,12);ctx.moveTo(4,1);ctx.lineTo(6,12);ctx.stroke();
+      ctx.fillStyle=shoes;ctx.beginPath();ctx.ellipse(-7,13,4.8,2.7,-.12,0,Math.PI*2);ctx.ellipse(7,13,4.8,2.7,.12,0,Math.PI*2);ctx.fill();
+      if(isPlayer){
+        // White low-top Converse-style trainers and dark sole
+        ctx.strokeStyle='#d9d9d3';ctx.lineWidth=.8;ctx.beginPath();ctx.ellipse(-7,13,4.8,2.7,0,0,Math.PI*2);ctx.ellipse(7,13,4.8,2.7,0,0,Math.PI*2);ctx.stroke();
+        ctx.fillStyle='#b9b9b3';ctx.fillRect(-10,14,6,1);ctx.fillRect(4,14,6,1);
+      }
+      // Jacket sleeves, arms
+      ctx.strokeStyle=jacket;ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(-7,-10);ctx.lineTo(-11,-1);ctx.moveTo(7,-10);ctx.lineTo(11,-1);ctx.stroke();
+      ctx.strokeStyle='#d39b74';ctx.lineWidth=3.6;ctx.beginPath();ctx.moveTo(-11,-1);ctx.lineTo(-12,1);ctx.moveTo(11,-1);ctx.lineTo(12,1);ctx.stroke();
+      // Jacket body behind the Saint-Martin T-shirt
+      ctx.fillStyle=jacket;ctx.beginPath();ctx.roundRect(-10,-15,20,20,4);ctx.fill();
+      if(isPlayer || [1,2,3,4,6].includes(enemyType)){
+        ctx.fillStyle='#fffdf4';ctx.beginPath();ctx.roundRect(-7.5,-14,15,17,3);ctx.fill();
+        
+        ctx.fillStyle='#c8d2c8';ctx.fillRect(-4,-12,8,1);
+      } else if(enemyType===7){
+        // White briefs
+        ctx.fillStyle='#fffdf8';ctx.beginPath();ctx.moveTo(-7,-3);ctx.lineTo(7,-3);ctx.lineTo(6,4);ctx.lineTo(1,5);ctx.lineTo(0,1);ctx.lineTo(-2,5);ctx.lineTo(-6,4);ctx.closePath();ctx.fill();
+        ctx.strokeStyle='#d2d0c9';ctx.lineWidth=.7;ctx.stroke();
+      }
+      // Head, face and hair
+      ctx.fillStyle='#bd835c';ctx.fillRect(-2.5,-20,5,6);
+      ctx.fillStyle='#dca77d';ctx.beginPath();ctx.arc(0,-22,7.2,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#302820';ctx.beginPath();ctx.arc(-2.5,-22,0.7,0,Math.PI*2);ctx.arc(2.5,-22,0.7,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#925e46';ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(-2,-18.5);ctx.quadraticCurveTo(0,-17.5,2,-18.5);ctx.stroke();
+
+      // Costume headgear / hair
+      if(isPlayer || enemyType===4){
+        // Black beanie with pink pom-pom
+        ctx.fillStyle='#17191c';ctx.beginPath();ctx.roundRect(-8,-30,16,10,5);ctx.fill();ctx.fillRect(-8,-24,16,3);
+        ctx.fillStyle='#f05a9c';ctx.beginPath();ctx.arc(0,-32,3.5,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#ff8dbb';ctx.beginPath();ctx.arc(-1,-33,1.2,0,Math.PI*2);ctx.fill();
+      } else if(enemyType===1){
+        // Grey ushanka / chapka with beige ear flaps
+        ctx.fillStyle='#777c80';ctx.beginPath();ctx.roundRect(-9,-31,18,10,4);ctx.fill();ctx.fillStyle='#9ca0a1';ctx.fillRect(-8,-24,16,3);
+        ctx.fillStyle='#d5c4a1';ctx.beginPath();ctx.roundRect(-11,-27,4,10,2);ctx.roundRect(7,-27,4,10,2);ctx.fill();
+      } else if(enemyType===3){
+        // Pink pig hood with ears and snout
+        ctx.fillStyle='#e9849a';ctx.beginPath();ctx.arc(0,-24,9,Math.PI,Math.PI*2);ctx.lineTo(9,-20);ctx.quadraticCurveTo(0,-14,-9,-20);ctx.closePath();ctx.fill();
+        ctx.beginPath();ctx.ellipse(-6,-31,3,5,-.5,0,Math.PI*2);ctx.ellipse(6,-31,3,5,.5,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#f6b3bf';ctx.beginPath();ctx.ellipse(0,-20,4.5,3,0,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#a9445b';ctx.beginPath();ctx.arc(-1.5,-20,0.8,0,Math.PI*2);ctx.arc(1.5,-20,0.8,0,Math.PI*2);ctx.fill();
+      } else if(enemyType===2 || enemyType===6){
+        ctx.fillStyle=enemyType===6?'#171717':'#4b3022';ctx.beginPath();
+        ctx.moveTo(-7,-23);ctx.quadraticCurveTo(-8,-32,0,-31);ctx.quadraticCurveTo(8,-31,7,-22);ctx.lineTo(3,-26);ctx.lineTo(-1,-24);ctx.lineTo(-5,-26);ctx.closePath();ctx.fill();
+      } else if(enemyType===7){
+        ctx.fillStyle='#c9282e';ctx.beginPath();ctx.roundRect(-8,-31,16,10,5);ctx.fill();ctx.fillRect(-8,-24,16,3);
+        ctx.fillStyle='#a81e24';ctx.beginPath();ctx.arc(0,-31,3,0,Math.PI*2);ctx.fill();
+      }
+      // Orange hood and orange jacket visible from behind for the player
+      if(isPlayer){
+        ctx.fillStyle='#f47b22';ctx.beginPath();ctx.moveTo(-8,-13);ctx.quadraticCurveTo(0,-8,8,-13);ctx.lineTo(6,-8);ctx.lineTo(-6,-8);ctx.closePath();ctx.fill();
+      }
+    }
+    if(hasPie && enemyType!==5){
+      ctx.save();ctx.translate(14,-9);ctx.rotate(-.28);
+      ctx.fillStyle='#9b6c3d';ctx.beginPath();ctx.ellipse(0,1,9,6,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#dfb46c';ctx.beginPath();ctx.ellipse(0,0,8,5,0,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#f5dfab';ctx.lineWidth=1.2;ctx.stroke();ctx.restore();
+    }
+    ctx.restore();
+  }
+  function drawBar(){
+    const p=worldToScreen(170,-150);
+    ctx.fillStyle='#503a28';ctx.fillRect(p.x-58,p.y-17,116,34);
+    ctx.fillStyle='#8b5a34';ctx.fillRect(p.x-62,p.y-21,124,9);
+    ctx.fillStyle='#d8bd8a';ctx.fillRect(p.x-55,p.y-14,110,4);
+    ctx.fillStyle='#f3e7c9';ctx.font='bold 11px system-ui';ctx.textAlign='center';ctx.fillText('BAR',p.x,p.y+7);
+    ctx.fillStyle='#a9c4a5';ctx.font='10px system-ui';ctx.fillText('VIN CHAUD',p.x,p.y+31);
+  }
+  function drawFire(){
+    const p=worldToScreen(0,0);
+    ctx.fillStyle='#44352b';ctx.beginPath();ctx.ellipse(p.x,p.y+5,30,13,0,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#75523a';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(p.x-22,p.y+6);ctx.lineTo(p.x+20,p.y-3);ctx.moveTo(p.x-20,p.y-3);ctx.lineTo(p.x+21,p.y+7);ctx.stroke();
+    ctx.fillStyle='#e16a28';ctx.beginPath();ctx.moveTo(p.x,p.y-32);ctx.quadraticCurveTo(p.x+22,p.y-9,p.x+9,p.y+1);ctx.quadraticCurveTo(p.x,p.y+13,p.x-10,p.y+1);ctx.quadraticCurveTo(p.x-20,p.y-14,p.x,p.y-32);ctx.fill();
+    ctx.fillStyle='#ffd36a';ctx.beginPath();ctx.moveTo(p.x,p.y-22);ctx.quadraticCurveTo(p.x+10,p.y-7,p.x+3,p.y+2);ctx.quadraticCurveTo(p.x-5,p.y+5,p.x-4,p.y-6);ctx.fill();
+    ctx.fillStyle='#ffe2a1';ctx.font='10px system-ui';ctx.textAlign='center';ctx.fillText('FEU',p.x,p.y+26);
+  }
+  function drawGround(){
+    ctx.fillStyle='#3c6741';ctx.fillRect(0,0,W,H);
+    // soft clearing
+    const c=worldToScreen(0,0);
+    ctx.fillStyle='#64804d';ctx.beginPath();ctx.ellipse(c.x,c.y+10,Math.min(W*.47,280),Math.min(H*.36,300),-.1,0,Math.PI*2);ctx.fill();
+    // winding path
+    ctx.strokeStyle='#a18a61';ctx.lineWidth=58;ctx.lineCap='round';ctx.beginPath();
+    let pts=[[-W*.55, H*.27],[-110,120],[-35,75],[80,65],[170,-30],[W*.5,-90]];
+    pts.forEach((pt,i)=>{let p=worldToScreen(pt[0],pt[1]); if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);});ctx.stroke();
+    ctx.strokeStyle='#b9a47b';ctx.lineWidth=2;ctx.setLineDash([8,12]);ctx.stroke();ctx.setLineDash([]);
+    // benches
+    [[-125,-75],[-120,80],[100,90]].forEach(([x,y])=>{const p=worldToScreen(x,y);ctx.fillStyle='#5a3b26';ctx.fillRect(p.x-24,p.y-4,48,8);ctx.fillRect(p.x-20,p.y+5,4,8);ctx.fillRect(p.x+16,p.y+5,4,8);});
+    drawBar(); drawFire();
+    // trees around clearing
+    const trees=[[-W*.45,-H*.28,1.2],[-W*.4,H*.02,1],[-W*.42,H*.32,1.1],[W*.38,-H*.30,1.2],[W*.43,H*.1,1.1],[W*.36,H*.36,1.3],[-W*.2,-H*.4,.9],[W*.18,-H*.42,1]];
+    trees.forEach(t=>drawTree(t[0],t[1],t[2]));
+    // small picnic tables
+    [[-190,5],[190,85]].forEach(([x,y])=>{const p=worldToScreen(x,y);ctx.fillStyle='#67462b';ctx.fillRect(p.x-20,p.y-7,40,14);ctx.fillRect(p.x-15,p.y+8,4,12);ctx.fillRect(p.x+11,p.y+8,4,12);});
+  }
+  function drawBonus(b){
+    const p=worldToScreen(b.x,b.y);
+    ctx.save(); ctx.translate(p.x,p.y);
+    const pulse=1+Math.sin(b.pulse||0)*0.10; ctx.scale(pulse,pulse);
+    ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(0,10,17,6,0,0,Math.PI*2);ctx.fill();
+    if(b.type==='wine'){
+      ctx.fillStyle='#f5f0e8';ctx.beginPath();ctx.roundRect(-9,-13,18,22,4);ctx.fill();
+      ctx.fillStyle='#8e1837';ctx.fillRect(-7,-10,14,15);
+      ctx.fillStyle='#e4c3cc';ctx.fillRect(-3,-19,6,7);
+      ctx.fillStyle='#fff';ctx.font='bold 8px system-ui';ctx.textAlign='center';ctx.fillText('VIN',0,24);
+    }else if(b.type==='beer'){
+      ctx.fillStyle='#f4d46b';ctx.beginPath();ctx.roundRect(-10,-12,17,22,3);ctx.fill();
+      ctx.strokeStyle='#fff4c4';ctx.lineWidth=3;ctx.beginPath();ctx.arc(9,-2,6,-Math.PI/2,Math.PI/2);ctx.stroke();
+      ctx.fillStyle='#fff';ctx.fillRect(-8,-15,13,4);
+      ctx.fillStyle='#fff';ctx.font='bold 8px system-ui';ctx.textAlign='center';ctx.fillText('BIÈRE',0,24);
+    }else if(b.type==='quad'){
+      ctx.fillStyle='#bd342d';ctx.fillRect(-13,-7,26,12);
+      ctx.fillStyle='#262626';ctx.beginPath();ctx.arc(-9,7,5,0,Math.PI*2);ctx.arc(9,7,5,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#f2d4a1';ctx.fillRect(-5,-12,10,5);
+      ctx.fillStyle='#fff';ctx.font='bold 8px system-ui';ctx.textAlign='center';ctx.fillText('QUAD',0,24);
+    }else{
+      ctx.fillStyle='#75d5df';ctx.beginPath();ctx.arc(0,0,14,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#174c68';ctx.lineWidth=2;
+      for(let a=0;a<6;a++){ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(a*Math.PI/3)*13,Math.sin(a*Math.PI/3)*13);ctx.stroke();}
+      ctx.fillStyle='#123a4c';ctx.font='bold 8px system-ui';ctx.textAlign='center';ctx.fillText('COVID',0,24);
+    }
+    ctx.restore();
+  }
+  function updateHud(){
+    const m=Math.floor(elapsed/60), s=Math.floor(elapsed%60);
+    timerEl.textContent=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+    meterFill.style.height=clamp(drunk,0,100)+'%';
+    livesEls.forEach((el,i)=>el.classList.toggle('lost',i>=lives));
+  }
+  function startGame(){
+    elapsed=0; drunk=100; lives=3; hitProtection=0; immunityTimer=0; quadTimer=0; bonuses=[]; bonusClock=rand(6,9); enemies=[]; particles=[]; enemyClock=0; fireClock=0; barClock=0; gameOverReason='';
+    const remainingTypes=[1,2,3,4,6,7];
+    for(let i=remainingTypes.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[remainingTypes[i],remainingTypes[j]]=[remainingTypes[j],remainingTypes[i]];}
+    enemySequence=[...remainingTypes.slice(0,4),5,...remainingTypes.slice(4)]; enemySpawnIndex=0;
+    player={x:-150,y:130,speed:112,invuln:0,atBar:0};
+    cameraX=player.x;cameraY=player.y;
+    addEnemy();
+    running=true;last=performance.now();pointer=null;overlay.classList.add('hidden');hint.textContent='Pose ton doigt dans le tiers inférieur et glisse pour diriger';
+    updateHud();
+    requestAnimationFrame(loop);
+  }
+  function addEnemy(){
+    const angle=rand(0,Math.PI*2), r=rand(220,310);
+    const type=enemySequence[enemySpawnIndex % enemySequence.length];
+    enemySpawnIndex++;
+    // 15 % slower than the player (112 px/s).
+    enemies.push({x:player.x+Math.cos(angle)*r,y:player.y+Math.sin(angle)*r,speed:player.speed*0.6885,hitCooldown:0,type,shirt:'#fffdf4',wander:rand(0,Math.PI*2),wanderRate:rand(0.65,1.35)});
+  }
+  function endGame(reason){
+    if(!running)return;
+    running=false;gameOverReason=reason||'La fête est terminée.';
+    document.getElementById('endText').textContent=gameOverReason+' Temps tenu : '+timerEl.textContent+'.';
+    startCard.classList.add('hidden');endCard.classList.remove('hidden');overlay.classList.remove('hidden');
+    renderScores(scoresEnd);
+  }
+  function update(dt){
+    if(!running)return;
+    elapsed+=dt; enemyClock+=dt;
+    if(enemyClock>=15){enemyClock-=15;addEnemy();showNotice('Un nouveau porteur de Totché arrive !',1.3);}
+    // Bonus : apparition à intervalles variables et durée de présence limitée.
+    bonusClock-=dt;
+    if(bonusClock<=0){
+      // Même si deux bonus sont déjà présents, on réessaie rapidement.
+      if(bonuses.length<2){
+        const roll=Math.random();
+        const type=roll<0.40?'wine':roll<0.72?'beer':roll<0.88?'covid':'quad';
+        // Choix d'une position visible dans la zone jouable, entre les arbres,
+        // le chemin et le bar, en évitant les bords et les commandes tactiles.
+        const sx=rand(W*0.18,W*0.78);
+        const sy=rand(H*0.18,H*0.72);
+        const pos=screenToWorld(sx,sy);
+        bonuses.push({type,x:pos.x,y:pos.y,life:5,pulse:rand(0,Math.PI*2)});
+      }
+      bonusClock=bonuses.length<2?rand(6,9):1;
+    }
+    bonuses.forEach(b=>{b.life-=dt;b.pulse+=dt*4;});
+    bonuses=bonuses.filter(b=>b.life>0);
+    immunityTimer=Math.max(0,immunityTimer-dt);
+    quadTimer=Math.max(0,quadTimer-dt);
+
+    if(pointer){
+      // Joystick invisible : la direction est calculée par rapport au point où
+      // le doigt a été posé, dans la zone inférieure de l'écran.
+      const dx=pointer.sx-pointer.startX;
+      const dy=pointer.sy-pointer.startY;
+      const distance=Math.hypot(dx,dy);
+      const deadZone=8;
+      const maxRadius=76;
+      if(distance>deadZone){
+        const strength=clamp((distance-deadZone)/(maxRadius-deadZone),0,1);
+        const step=player.speed*(quadTimer>0?1.5:1)*strength*dt;
+        player.x+=(dx/distance)*step;
+        player.y+=(dy/distance)*step;
+      }
+    }
+    cameraX+=(player.x-cameraX)*Math.min(1,dt*5);
+    cameraY+=(player.y-cameraY)*Math.min(1,dt*5);
+    // Collecte des bonus.
+    for(let i=bonuses.length-1;i>=0;i--){
+      const b=bonuses[i];
+      if(Math.hypot(player.x-b.x,player.y-b.y)<27){
+        bonuses.splice(i,1);
+        if(b.type==='wine'){drunk=Math.min(100,drunk+20);showNotice('Verre de vin rouge : +20 % de jauge',1.5);}
+        else if(b.type==='beer'){immunityTimer=4;showNotice('Chope de bière : immunité pendant 4 secondes',1.6);}
+        else if(b.type==='quad'){quadTimer=4;showNotice('Quad motorisé : vitesse +50 % pendant 4 secondes',1.6);}
+        else {showNotice('COVID : la fête est terminée !',1.5);endGame('Tu as attrapé le COVID. GAME OVER.');return;}
+      }
+    }
+    const atBar=Math.hypot(player.x-170,player.y+150)<55;
+    if(atBar){
+      barClock+=dt;
+      if(barClock>=.5){drunk=Math.min(100,drunk+dt*(100/1.5));}
+      if(drunk<100 && barClock<.5)showNotice('Tu te ressers… reste sur place !',.5);
+    }else{barClock=0;drunk-=dt*(100/15);}
+    if(drunk<=0){drunk=0;endGame('Tu as fini complètement à sec.');}
+    if(Math.hypot(player.x,player.y)<38){
+      fireClock+=dt;
+      if(fireClock>0.35)showNotice('Éloigne toi du feu sapristi !',.7);
+      if(fireClock>1){endGame('Tu es resté trop près du feu.');}
+    }else fireClock=0;
+    hitProtection=Math.max(0,hitProtection-dt);
+    // IA : poursuite, anticipation légère et tentatives de contournement.
+    enemies.forEach((e,index)=>{
+      e.hitCooldown=Math.max(0,e.hitCooldown-dt);
+      e.wander=(e.wander||0)+(e.wanderRate||1)*dt;
+
+      // Estime la direction choisie par le joueur grâce au joystick.
+      let moveX=0,moveY=0;
+      if(pointer){
+        const mx=pointer.sx-pointer.startX, my=pointer.sy-pointer.startY;
+        const md=Math.hypot(mx,my);
+        if(md>8){moveX=mx/md;moveY=my/md;}
+      }
+
+      const dx=player.x-e.x,dy=player.y-e.y;
+      const distance=Math.hypot(dx,dy)||1;
+      let targetX=player.x,targetY=player.y;
+
+      // Certains ennemis cherchent à couper la route ; d'autres contournent.
+      if(e.type===1 || e.type===6){
+        const lead=e.type===6?42:30;
+        targetX+=moveX*lead;targetY+=moveY*lead;
+      } else if(e.type===2 || e.type===4){
+        const side=(Math.sin(e.wander*0.55)>=0?1:-1);
+        const flank=e.type===4?34:22;
+        targetX+=moveX*10 + (-dy/distance)*side*flank;
+        targetY+=moveY*10 + (dx/distance)*side*flank;
+      } else if(e.type===3){
+        // Le cochon est imprévisible : il zigzague davantage.
+        targetX+=Math.cos(e.wander*1.8)*19;
+        targetY+=Math.sin(e.wander*1.5)*19;
+      } else if(e.type===5){
+        // Le lama avance plus régulièrement, sans changements brusques.
+        targetX+=moveX*16;targetY+=moveY*16;
+      } else {
+        targetX+=moveX*24;targetY+=moveY*24;
+      }
+
+      const tx=targetX-e.x,ty=targetY-e.y,td=Math.hypot(tx,ty)||1;
+      const wobble=Math.sin(e.wander+(index*0.7))*((e.type===3)?0.24:0.10);
+      const vx=(tx/td)*Math.cos(wobble)-(ty/td)*Math.sin(wobble);
+      const vy=(tx/td)*Math.sin(wobble)+(ty/td)*Math.cos(wobble);
+      let personalitySpeed=1;
+      if(e.type===2) personalitySpeed=0.92;       // plus lent, contourne
+      else if(e.type===3) personalitySpeed=1.06;  // zigzag plus vif
+      else if(e.type===4) personalitySpeed=0.96;  // flanqueur
+      else if(e.type===5) personalitySpeed=0.84;  // lama lent et régulier
+      else if(e.type===6) personalitySpeed=1.02;  // intercepteur
+      else if(e.type===7) personalitySpeed=0.90;  // imprévisible mais moins pressant
+      e.x+=vx*e.speed*personalitySpeed*dt;e.y+=vy*e.speed*personalitySpeed*dt;
+    });
+    // Évite que les ennemis se superposent : ils se repoussent mutuellement.
+    for(let i=0;i<enemies.length;i++){
+      for(let j=i+1;j<enemies.length;j++){
+        const a=enemies[i],b=enemies[j];
+        let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
+        const minDist=31;
+        if(d<minDist){
+          if(d<0.01){dx=rand(-1,1);dy=rand(-1,1);d=Math.hypot(dx,dy)||1;}
+          const push=(minDist-d)/2;
+          a.x-=(dx/d)*push;a.y-=(dy/d)*push;
+          b.x+=(dx/d)*push;b.y+=(dy/d)*push;
+        }
+      }
+    }
+    // Un seul ennemi peut toucher le joueur ; après un Totché, protection d'une seconde.
+    if(!atBar && hitProtection<=0 && immunityTimer<=0){
+      const attacker=enemies.find(e=>Math.hypot(e.x-player.x,e.y-player.y)<24 && e.hitCooldown<=0);
+      if(attacker){
+        lives--;
+        attacker.hitCooldown=1.3;
+        hitProtection=1;
+        player.invuln=1;
+        showNotice('Un morceau dans la capuche !',1);
+        if(lives<=0){endGame('Perduuuuuu : trois morceaux dans la capuche.');}
+      }
+    } else if(atBar && barClock>=.5 && drunk<100){
+      const close=enemies.some(e=>Math.hypot(e.x-player.x,e.y-player.y)<24);
+      if(close)showNotice('Ravitaillement protégé !',0.8);
+    }
+    player.invuln=Math.max(0,player.invuln-dt);
+    if(noticeClock>0){noticeClock-=dt;if(noticeClock<=0)notice.style.opacity='0';}
+    updateHud();
+  }
+  function render(){
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    drawGround();
+    // Bonus affichés au-dessus du décor et sous les personnages.
+    bonuses.forEach(drawBonus);
+    // draw enemies and player
+    enemies.forEach(e=>drawPerson(e.x,e.y,e.shirt,true,false,e.type));
+    if(player)drawPerson(player.x,player.y,player.invuln>0?'#d9a25e':'#f1eee0',false,true);
+    if(running){
+      const atBar=Math.hypot(player.x-170,player.y+150)<55;
+      if(atBar){
+        const p=worldToScreen(player.x,player.y-37);ctx.fillStyle='#ffffff';ctx.font='bold 11px system-ui';ctx.textAlign='center';ctx.fillText('BAR : +VIN',p.x,p.y);
+      }
+    }
+    requestAnimationFrame(render);
+  }
+  function loop(now){const dt=Math.min((now-last)/1000,.05);last=now;update(dt);if(running)requestAnimationFrame(loop);}
+  canvas.addEventListener('pointerdown',e=>{
+    if(!running)return;
+    e.preventDefault();
+    // Les commandes sont limitées au tiers inférieur pour laisser l'action visible.
+    if(e.clientY < H*0.66)return;
+    canvas.setPointerCapture(e.pointerId);
+    pointer={startX:e.clientX,startY:e.clientY,sx:e.clientX,sy:e.clientY};
+  });
+  canvas.addEventListener('pointermove',e=>{
+    if(!running||!pointer)return;
+    e.preventDefault();
+    pointer.sx=e.clientX;pointer.sy=e.clientY;
+  });
+  const stopPointer=()=>pointer=null;
+  canvas.addEventListener('pointerup',stopPointer);canvas.addEventListener('pointercancel',stopPointer);canvas.addEventListener('pointerleave',e=>{if(e.pointerType==='mouse')stopPointer();});
+  function getScores(){try{return JSON.parse(localStorage.getItem('fuyezTotcheScores')||'[]')}catch(e){return []}}
+  function renderScores(target){
+    const scores=getScores().sort((a,b)=>b.time-a.time).slice(0,5);
+    target.innerHTML='<strong>Meilleurs scores</strong>'+ (scores.length?scores.map(s=>'<div><span>'+escapeHtml(s.name)+'</span><span>'+formatTime(s.time)+'</span></div>').join(''):'<div>Pas encore de score enregistré</div>');
+  }
+  function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function formatTime(t){return String(Math.floor(t/60)).padStart(2,'0')+':'+String(Math.floor(t%60)).padStart(2,'0');}
+  document.getElementById('startBtn').addEventListener('click',startGame);
+  document.getElementById('againBtn').addEventListener('click',()=>{endCard.classList.add('hidden');startCard.classList.remove('hidden');renderScores(scoresEl);});
+  document.getElementById('saveBtn').addEventListener('click',()=>{
+    const name=(document.getElementById('initials').value.toUpperCase().replace(/[^A-ZÀ-ÖØ-Þ]/g,'').slice(0,3)||'AAA');
+    const scores=getScores();scores.push({name,time:elapsed});scores.sort((a,b)=>b.time-a.time);
+    try{localStorage.setItem('fuyezTotcheScores',JSON.stringify(scores.slice(0,10)));}catch(e){}
+    renderScores(scoresEnd);
+    document.getElementById('endText').textContent='Score enregistré sur cet appareil.';
+    document.getElementById('saveBtn').textContent='Score enregistré';
+  });
+  renderScores(scoresEl);
+  render();
+})();
+</script>
+</body>
+</html>
